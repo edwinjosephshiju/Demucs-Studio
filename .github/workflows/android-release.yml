@@ -30,9 +30,15 @@ jobs:
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: Ensure Executable Gradle Wrapper
+        run: |
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+          fi
 
       - name: Module 6 Anti-Mock & Zero-Demo Integrity Audit
         run: |
@@ -56,7 +62,7 @@ jobs:
           echo "✅ Integrity Audit Passed: Zero prohibited patterns found in source code."
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -64,8 +70,7 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.1.1'
+
 
       - name: Determine Versioning Information
         run: |
@@ -132,13 +137,6 @@ jobs:
             echo "PRODUCTION_SIGNED=false" >> $GITHUB_ENV
             echo "ℹ️ Built with self-signed fallback keystore. Configure GitHub Repository Secrets to generate certified production releases."
           fi
-
-      - name: Ensure Executable Gradle Wrapper
-        run: |
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper
-          fi
-          chmod +x gradlew
 
       - name: Compile & Package Android Release Artifacts (APK & AAB)
         run: |
