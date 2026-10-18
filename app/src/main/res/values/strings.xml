@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Demucs Studio</string>
+    <string name="load_audio">Load Audio</string>
+    <string name="separate_stems">Separate Stems</string>
+    <string name="vocals_label">Vocals</string>
+    <string name="karaoke_label">Karaoke</string>
+    <string name="mute">Mute</string>
+    <string name="solo">Solo</string>
+    <string name="export_action">Export Stems</string>
+</resources>

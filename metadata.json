@@ -1,0 +1,6 @@
+{
+  "name": "Demucs Studio",
+  "description": "Demucs v4 FT ONNX vocal and karaoke stem separator with synchronized DAW-style dual waveforms, low-latency playback, and lossless WAV export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Center Safe Area Group (centered at 54,54 within 66dp zone) -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
+
+        <!-- Master Sound Wave Input (Left) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M24,48 L27,48 L27,60 L24,60 Z M30,42 L33,42 L33,66 L30,66 Z M36,36 L39,36 L39,72 L36,72 Z" />
+
+        <!-- Split Node Center -->
+        <path
+            android:fillColor="#00E5FF"
+            android:pathData="M43,49 A5,5 0 1,0 43,59 A5,5 0 1,0 43,49 Z" />
+
+        <!-- Top Stream (Vocals - Electric Cyan) -->
+        <!-- Curved path up -->
+        <path
+            android:strokeColor="#00E5FF"
+            android:strokeWidth="2.8"
+            android:strokeLineCap="round"
+            android:pathData="M48,50 C54,42 60,38 68,38" />
+        <!-- Vocal waveform bars -->
+        <path
+            android:fillColor="#00E5FF"
+            android:pathData="M70,33 L73,33 L73,43 L70,43 Z M75,28 L78,28 L78,48 L75,48 Z M80,31 L83,31 L83,45 L80,45 Z" />
+        <!-- Vocal Microphone badge -->
+        <path
+            android:fillColor="#00E5FF"
+            android:pathData="M60,26 C60,24.3 61.3,23 63,23 C64.7,23 66,24.3 66,26 L66,31 C66,32.7 64.7,34 63,34 C61.3,34 60,32.7 60,31 Z M58,29 C58,31.8 60.2,34 63,34 C65.8,34 68,31.8 68,29 L70,29 C70,32.5 67.4,35.4 64,35.9 L64,38 L62,38 L62,35.9 C58.6,35.4 56,32.5 56,29 Z" />
+
+        <!-- Bottom Stream (Karaoke - Warm Amber) -->
+        <!-- Curved path down -->
+        <path
+            android:strokeColor="#FF9100"
+            android:strokeWidth="2.8"
+            android:strokeLineCap="round"
+            android:pathData="M48,58 C54,66 60,70 68,70" />
+        <!-- Instrumental waveform bars -->
+        <path
+            android:fillColor="#FF9100"
+            android:pathData="M70,65 L73,65 L73,75 L70,75 Z M75,60 L78,60 L78,80 L75,80 Z M80,63 L83,63 L83,77 L80,77 Z" />
+        <!-- Music Note badge -->
+        <path
+            android:fillColor="#FF9100"
+            android:pathData="M62,81 A3,3 0 1,1 59,78 C59,78 62,77.5 62,75 L62,67 L68,65 L68,76 A3,3 0 1,1 65,73 C65,73 68,72.5 68,70 L64,71 L64,78" />
+
+    </group>
+</vector>
