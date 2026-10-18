@@ -12,15 +12,29 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
+  val envVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+  val envVersionName = System.getenv("VERSION_NAME") ?: "1.0.0"
+
   defaultConfig {
     applicationId = "com.aistudio.demucsstemstudio.kpvzx"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = envVersionCode
+    versionName = envVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    ndk {
+      abiFilters += listOf("arm64-v8a")
+    }
   }
+
+  packaging {
+    jniLibs {
+      useLegacyPackaging = true
+    }
+  }
+
 
   // Do not remove or modify these signingConfigs. They are necessary for building, installing,
   // and updating Android apps in AI Studio.

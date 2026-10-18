@@ -1,0 +1,202 @@
+name: Android Production Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Release version tag (e.g. v1.0.0, v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+      prerelease:
+        description: 'Mark this release as a Pre-Release'
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qa-and-build:
+    name: QA Verification, Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Module 6 Anti-Mock & Zero-Demo Integrity Audit
+        run: |
+          echo "================================================================="
+          echo "RUNNING MODULE 6 QA INTEGRITY AUDIT"
+          echo "Verifying ZERO mock logic, ZERO synthetic sine waves, and ZERO fake delays"
+          echo "================================================================="
+
+          # Scan for prohibited keywords in the DSP and separation engine packages
+          # We specifically filter out java.io.RandomAccessFile which is a standard I/O class
+          AUDIT_FAILURES=$(grep -rnE "(delay\(|\bRandom\b|Math\.sin|mock|demo|simulate)" app/src/main/java/ | grep -v "RandomAccessFile" || true)
+
+          if [ -n "$AUDIT_FAILURES" ]; then
+            echo "❌ CRITICAL FAILURE: Prohibited mock/demo/synthetic keywords detected:"
+            echo "$AUDIT_FAILURES"
+            echo ""
+            echo "Module 6 Mandate: Codebase must not contain fake delays, synthetic sine generators, or demo fallbacks."
+            exit 1
+          fi
+
+          echo "✅ Integrity Audit Passed: Zero prohibited patterns found in source code."
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.1'
+
+      - name: Determine Versioning Information
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RAW_TAG="${{ github.event.inputs.version_tag }}"
+            PRERELEASE_VAL="${{ github.event.inputs.prerelease }}"
+          else
+            RAW_TAG="${GITHUB_REF_NAME}"
+            PRERELEASE_VAL="false"
+          fi
+
+          # Strip leading 'v' if present (e.g. v1.0.0 -> 1.0.0)
+          CLEAN_VERSION="${RAW_TAG#v}"
+          BUILD_CODE="${GITHUB_RUN_NUMBER}"
+
+          echo "VERSION_NAME=${CLEAN_VERSION}" >> $GITHUB_ENV
+          echo "VERSION_CODE=${BUILD_CODE}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${RAW_TAG}" >> $GITHUB_ENV
+          echo "IS_PRERELEASE=${PRERELEASE_VAL}" >> $GITHUB_ENV
+
+          echo "Release Tag: ${RAW_TAG}"
+          echo "Version Name: ${CLEAN_VERSION}"
+          echo "Version Code: ${BUILD_CODE}"
+          echo "Pre-release: ${PRERELEASE_VAL}"
+
+      - name: Configure Android Signing Keystore (Dual-Mode Signed / Fallback)
+        id: keystore-config
+        run: |
+          KEYSTORE_DEST="app/release-keystore.jks"
+
+          if [ -n "${{ secrets.SIGNING_KEY_STORE_BASE64 }}" ]; then
+            echo "Found SIGNING_KEY_STORE_BASE64 secret. Decoding production release keystore..."
+            echo "${{ secrets.SIGNING_KEY_STORE_BASE64 }}" | base64 --decode > "$KEYSTORE_DEST"
+            
+            KEYSTORE_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+            KEY_ALIAS_VAL="${{ secrets.KEY_ALIAS }}"
+            [ -z "$KEY_ALIAS_VAL" ] && KEY_ALIAS_VAL="upload"
+            KEY_PASS_VAL="${{ secrets.KEY_PASSWORD }}"
+            [ -z "$KEY_PASS_VAL" ] && KEY_PASS_VAL="$KEYSTORE_PASS"
+            
+            echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/${KEYSTORE_DEST}" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${KEYSTORE_PASS}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${KEY_ALIAS_VAL}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${KEY_PASS_VAL}" >> $GITHUB_ENV
+            echo "PRODUCTION_SIGNED=true" >> $GITHUB_ENV
+            echo "✅ Production keystore successfully loaded."
+          else
+            echo "⚠️ SIGNING_KEY_STORE_BASE64 secret not found. Initializing fallback self-signed keystore..."
+            keytool -genkeypair \
+              -v \
+              -keystore "$KEYSTORE_DEST" \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=DemucsStudioFallback, OU=AndroidDev, O=OpenSource, L=Default, ST=Default, C=US"
+            
+            echo "KEYSTORE_PATH=${GITHUB_WORKSPACE}/${KEYSTORE_DEST}" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+            echo "PRODUCTION_SIGNED=false" >> $GITHUB_ENV
+            echo "ℹ️ Built with self-signed fallback keystore. Configure GitHub Repository Secrets to generate certified production releases."
+          fi
+
+      - name: Ensure Executable Gradle Wrapper
+        run: |
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
+          fi
+          chmod +x gradlew
+
+      - name: Compile & Package Android Release Artifacts (APK & AAB)
+        run: |
+          ./gradlew clean lintRelease assembleRelease bundleRelease --stacktrace
+
+      - name: Prepare & Checksum Release Binaries
+        run: |
+          mkdir -p release-artifacts
+          
+          # Locate generated APK
+          SOURCE_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          TARGET_APK="release-artifacts/DemucsStudio-${VERSION_NAME}-arm64-v8a-universal.apk"
+          cp "$SOURCE_APK" "$TARGET_APK"
+
+          # Locate generated AAB
+          SOURCE_AAB=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          TARGET_AAB="release-artifacts/DemucsStudio-${VERSION_NAME}.aab"
+          cp "$SOURCE_AAB" "$TARGET_AAB"
+
+          # Generate cryptographic SHA-256 checksums
+          cd release-artifacts
+          sha256sum "DemucsStudio-${VERSION_NAME}-arm64-v8a-universal.apk" "DemucsStudio-${VERSION_NAME}.aab" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Demucs Studio ${{ env.RELEASE_TAG }}
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/DemucsStudio-${{ env.VERSION_NAME }}-arm64-v8a-universal.apk
+            release-artifacts/DemucsStudio-${{ env.VERSION_NAME }}.aab
+            release-artifacts/SHA256SUMS.txt
+          body: |
+            ## Demucs Studio Android Release ${{ env.RELEASE_TAG }}
+
+            ### Binary Verification & Details
+            | Artifact | Type | Target Architecture | Signed Status |
+            | :--- | :--- | :--- | :--- |
+            | `DemucsStudio-${{ env.VERSION_NAME }}-arm64-v8a-universal.apk` | Sideloadable APK | `arm64-v8a` | ${{ env.PRODUCTION_SIGNED == 'true' && '✅ Production Key' || '⚠️ Self-Signed Fallback' }} |
+            | `DemucsStudio-${{ env.VERSION_NAME }}.aab` | Google Play Bundle | `arm64-v8a` | ${{ env.PRODUCTION_SIGNED == 'true' && '✅ Production Key' || '⚠️ Self-Signed Fallback' }} |
+            | `SHA256SUMS.txt` | Checksum Manifest | Universal | N/A |
+
+            ### ONNX Neural Engine Requirements
+            - **Default Model:** `HT-Demucs v4 FT Vocals Specialist` (166 MB)
+            - **Download Source:** Downloadable directly inside the application via the built-in HTTP downloader or via Hugging Face (`StemSplitio/htdemucs-ft-vocals-onnx`).
+            - **Hardware Acceleration:** Qualcomm Snapdragon 8 Gen 2 / Gen 3 Hexagon HTP NPU & Adreno GPU via Qualcomm QNN Runtime (`libcdsprpc.so`, `libOpenCL.so`).
+
+            ### Checksum Verification Command
+            ```bash
+            sha256sum -c SHA256SUMS.txt
+            ```
+
+      - name: Clean up Sensitive Keystore
+        if: always()
+        run: |
+          rm -f app/release-keystore.jks
+          echo "Cleaned up temporary keystore files."

@@ -494,3 +494,52 @@ grep -rnE "(delay\(|Random|Math\.sin|mock|demo|simulate)" app/src/main/java/
 4. Separation runs: live ONNX proof telemetry HUD shows node names and shapes.
 5. Playback: synchronized dual-waveform playback with real-time VU meters and faders.
 6. Export: generates standard 16-bit 44.1 kHz RIFF WAV files for system sharing.
+
+---
+
+## MODULE 7: Automated CI/CD Release Pipeline & Keystore Setup
+
+### 1. Generating a Production Release Keystore
+Run the standard Java `keytool` utility locally to create a 2048-bit RSA keystore:
+```bash
+keytool -genkeypair \
+  -v \
+  -keystore release-keystore.jks \
+  -alias upload \
+  -keyalg RSA \
+  -keysize 2048 \
+  -validity 10000 \
+  -storepass "<STRONG_STORE_PASSWORD>" \
+  -keypass "<STRONG_KEY_PASSWORD>" \
+  -dname "CN=DemucsStudioRelease, OU=MobileAudio, O=DemucsStudio, L=SanFrancisco, ST=California, C=US"
+```
+
+### 2. Base64-Encoding & GitHub Repository Secrets Configuration
+Encode the generated `.jks` file to a single-line base64 string:
+- **Linux:**
+  ```bash
+  base64 -w 0 release-keystore.jks > keystore_base64.txt
+  ```
+- **macOS:**
+  ```bash
+  base64 -i release-keystore.jks | tr -d '\n' > keystore_base64.txt
+  ```
+
+In your GitHub repository, navigate to **Settings > Secrets and variables > Actions > New repository secret** and define the following four secrets:
+| Secret Name | Value | Description |
+| :--- | :--- | :--- |
+| `SIGNING_KEY_STORE_BASE64` | Content of `keystore_base64.txt` | Base64-encoded binary content of `release-keystore.jks` |
+| `KEYSTORE_PASSWORD` | `<STRONG_STORE_PASSWORD>` | Keystore store password |
+| `KEY_ALIAS` | `upload` | Key alias defined during keystore generation |
+| `KEY_PASSWORD` | `<STRONG_KEY_PASSWORD>` | Private key password (often same as store password) |
+
+*Note: If these secrets are not configured, the GitHub Actions pipeline automatically detects their absence and generates a self-signed fallback keystore so initial test workflow runs complete successfully without failure.*
+
+### 3. Triggering a Release
+To publish an official versioned release with APK, AAB, and SHA256 checksums:
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+Or trigger manually via the GitHub Actions UI under the **Actions** tab by selecting **Android Production Release > Run workflow** with your desired version tag (e.g., `v1.0.0`).
+
